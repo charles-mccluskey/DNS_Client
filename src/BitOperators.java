@@ -216,9 +216,8 @@ public class BitOperators {
 	}
 	
 	/**
-	 * Takes in a DNS packet and sets its RCode field
+	 * Takes in a DNS packet and initializes its header count fields
 	 * @param data the DNS packet
-	 * @param RCode a 4-bit binary string
 	 * @return the updated DNS packet
 	 */
 	public static byte[] initializeHeaderCounts(byte[] data) {
