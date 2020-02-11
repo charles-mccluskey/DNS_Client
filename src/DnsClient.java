@@ -8,6 +8,8 @@ public class DnsClient {
 	private static int timeoutTime = 5;
 	private static int maxRetries = 3;
 	private static int udpPort = 53;
+	private static int queryTypeIndex=0;
+	private static String[] queryType= {"00000001","00000010","00001111"};
 
 	public static void main(String[] args) {
 		//Input argument indices
@@ -34,13 +36,16 @@ public class DnsClient {
 			boolean mx_ns_flag = true;
 			byte[] ip = new byte[4];
 			byte[] sendData = new byte[1024];
+			String[] urlStringArr= {};
 			for(int i=0;i<args.length;i++) {//parse the args
 				if(args[i].charAt(0)=='@') {//found the IP address
 					if(i+1 == args.length) {
 						System.out.println("Missing URL");
 						return;
 					}else {
-						ip = parseIP(args[i]);						
+						ip = parseIP(args[i]);
+						i++;
+						urlStringArr = args[i].split("[.]");
 					}
 					
 				}else if(args[i].contentEquals("-t")) {
@@ -54,28 +59,42 @@ public class DnsClient {
 					setPort(Integer.parseInt(args[i]));
 				}else if(args[i].contentEquals("-mx") && mx_ns_flag) {
 					mx_ns_flag=false;
-					//BitOperator goes here
+					setQueryTypeIndex(2);
 				}else if(args[i].contentEquals("-ns") && mx_ns_flag) {
 					mx_ns_flag=false;
-					//BitOperator goes here
+					setQueryTypeIndex(1);
 				}
 			}
-			
+			sendData= initializeHeader(sendData);
 
 			byte[] receiveData = new byte[1024];
 			InetAddress addr = InetAddress.getByAddress(ip);
-			sendData = BitOperators.setHeaderID(sendData);
-			sendData = BitOperators.setQR(sendData, true);
-			sendData = BitOperators.setOpCode(sendData, "0000");
-			sendData = BitOperators.setAA(sendData, false);
-			sendData = BitOperators.setTC(sendData, false);
-			sendData = BitOperators.setRD(sendData, true);
-			sendData = BitOperators.setRA(sendData, false);
-			sendData = BitOperators.setZ(sendData, "000");//yes, 3 zeroes
-			sendData = BitOperators.setRCode(sendData, "0000");
-			sendData = BitOperators.initializeHeaderCounts(sendData);
+			//Starting at byte 12
+			int byteIndex = 12;
+			for(int i=0;i<urlStringArr.length;i++) {
+				sendData[byteIndex] = (byte) urlStringArr[i].length();//plug in the word size
+				byteIndex++;
+				for(int j=0;j<urlStringArr[i].length();j++) {//plug each letter
+					sendData[byteIndex] = (byte)urlStringArr[i].charAt(j);
+					byteIndex++;
+				}
+			}
+			//Enter null byte to terminate QName
+			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000000");
 			
-			System.out.println("initialize? "+sendData[5]);
+			//Either next byte or next even index byte. Current assumption: next byte
+			byteIndex++;//format QType
+			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000000");
+			byteIndex++;
+			sendData[byteIndex]= BitOperators.convertBinaryStringToByte(getQueryType(getQueryTypeIndex()));
+			
+			byteIndex++;//now format QClass
+			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000000");
+			byteIndex++;
+			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000001");
+			
+			
+			
 			/*
 			DatagramSocket clientSocket = new DatagramSocket();
 			
@@ -93,6 +112,21 @@ public class DnsClient {
 			e.printStackTrace();
 		} 
 		
+	}
+	
+	private static byte[] initializeHeader(byte[] sendData) {
+		sendData = BitOperators.setHeaderID(sendData);
+		sendData = BitOperators.setQR(sendData, true);
+		sendData = BitOperators.setOpCode(sendData, "0000");
+		sendData = BitOperators.setAA(sendData, false);
+		sendData = BitOperators.setTC(sendData, false);
+		sendData = BitOperators.setRD(sendData, true);
+		sendData = BitOperators.setRA(sendData, false);
+		sendData = BitOperators.setZ(sendData, "000");//yes, 3 zeroes
+		sendData = BitOperators.setRCode(sendData, "0000");
+		sendData = BitOperators.initializeHeaderCounts(sendData);
+		
+		return sendData;
 	}
 	
 		private static byte[] parseIP(String rawIP) {
@@ -162,6 +196,18 @@ public class DnsClient {
 	
 	private static int getMaxRetries() {
 		return maxRetries;
+	}
+	
+	private static void setQueryTypeIndex(int i) {
+		queryTypeIndex = i;
+	}
+	
+	private static int getQueryTypeIndex() {
+		return queryTypeIndex;
+	}
+	
+	private static String getQueryType(int i) {
+		return queryType[i];
 	}
 	
 	private void printQuerySummary(String name, String ipaddress, String type){
