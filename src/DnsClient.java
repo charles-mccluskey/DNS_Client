@@ -30,23 +30,61 @@ public class DnsClient {
 		 * ADDITIONAL
 		 */
 		try {
-			ByteBuffer test = ByteBuffer.allocate(4);
-			test.putChar(0,'b');
-			System.out.println(test.getChar(0));
-			System.out.println(test.getShort(2));
-			
 			DatagramSocket clientSocket = new DatagramSocket();
-			/*
+			
 			byte[] sendData = new byte[1024];
+			byte[] ip = new byte[4];
 			for(int i=0;i<args.length;i++) {
-				if(args[i].charAt(0)=='@') {
-					;
+				if(args[i].charAt(0)=='@') {//we have the IP address
+					System.out.println("we have the IP address");
+					ip = parseIP(args[i]);
 				}
-			}*/
+			}
+			for(int i=0;i<ip.length;i++) {
+				System.out.println("ip out: "+ip[i]);
+			}
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} 
 		
+	}
+	
+		private static byte[] parseIP(String rawIP) {
+		StringBuilder builder = new StringBuilder(rawIP);
+		builder.deleteCharAt(0);//delete @ char
+		
+		//SPLIT ISN'T WORKING >:L
+		//gonna have to make my own tokenizer
+		String[] indIP = new String[4];
+		int index=0;
+		while(builder.length()!=0) {
+			String token = "";
+			if(index !=3) {
+				int i = builder.indexOf(".");
+				token = builder.substring(0, i);
+				builder.delete(0, i+1);
+		
+			}else {
+				token = builder.toString();
+				builder.delete(0, builder.length());
+			}
+			indIP[index] = token;//.toString();
+			index++;
+		}
+		
+		//We now have a string array, but we need an array of ints to get our byte array.
+		int[] addr = new int[4];
+		for(int i=0;i<indIP.length;i++) {
+			addr[i]=Integer.parseInt(indIP[i]);
+		}
+		
+		byte[] returnArr = new byte[4];
+		for(int i=0;i<4;i++) {
+			System.out.println("Addr at "+i+":"+addr[i]);
+			returnArr[i]=(byte) addr[i];
+		}
+		
+		return returnArr;
 	}
 	
 	private static byte[] randomID() {
