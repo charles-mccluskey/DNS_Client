@@ -33,9 +33,16 @@ public class DnsClient {
 		try {
 			boolean mx_ns_flag = true;
 			byte[] ip = new byte[4];
+			byte[] sendData = new byte[1024];
 			for(int i=0;i<args.length;i++) {//parse the args
 				if(args[i].charAt(0)=='@') {//found the IP address
-					ip = parseIP(args[i]);
+					if(i+1 == args.length) {
+						System.out.println("Missing URL");
+						return;
+					}else {
+						ip = parseIP(args[i]);						
+					}
+					
 				}else if(args[i].contentEquals("-t")) {
 					i++;
 					setTimeout(Integer.parseInt(args[i]));
@@ -47,16 +54,29 @@ public class DnsClient {
 					setPort(Integer.parseInt(args[i]));
 				}else if(args[i].contentEquals("-mx") && mx_ns_flag) {
 					mx_ns_flag=false;
-					//What goes here?
+					//BitOperator goes here
 				}else if(args[i].contentEquals("-ns") && mx_ns_flag) {
 					mx_ns_flag=false;
-					//What goes here?
+					//BitOperator goes here
 				}
 			}
 			
-			byte[] sendData = new byte[1024];
+
 			byte[] receiveData = new byte[1024];
 			InetAddress addr = InetAddress.getByAddress(ip);
+			sendData = BitOperators.setHeaderID(sendData);
+			sendData = BitOperators.setQR(sendData, true);
+			sendData = BitOperators.setOpCode(sendData, "0000");
+			sendData = BitOperators.setAA(sendData, false);
+			sendData = BitOperators.setTC(sendData, false);
+			sendData = BitOperators.setRD(sendData, true);
+			sendData = BitOperators.setRA(sendData, false);
+			sendData = BitOperators.setZ(sendData, "000");//yes, 3 zeroes
+			sendData = BitOperators.setRCode(sendData, "0000");
+			sendData = BitOperators.initializeHeaderCounts(sendData);
+			
+			System.out.println("initialize? "+sendData[5]);
+			/*
 			DatagramSocket clientSocket = new DatagramSocket();
 			
 			DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, addr, getPort());
@@ -68,7 +88,7 @@ public class DnsClient {
 			String modifiedSentence = new String(receivePacket.getData());
 			System.out.println("FROM SERVER:"+modifiedSentence);
 			clientSocket.close();
-			
+			*/
 		} catch (IOException e) {
 			e.printStackTrace();
 		} 

@@ -3,7 +3,7 @@ import java.util.Random;
 /**
  * This class acts as a library of methods used to manipulate DNS packets.
  * @author Darien Muse-Charbonneau, 260791466
- * @author Charles McCluskey, 260xxxxxx
+ * @author Charles McCluskey, 260688016
  */
 public class BitOperators {
 
@@ -211,6 +211,25 @@ public class BitOperators {
 		String s1 = convertByteToBinaryString(data[3]); //Get the binary string of data[3]
 		String s2 = s1.substring(0,3) + RCode.substring(0, 3);
 		data[3] = convertBinaryStringToByte(s2);
+
+		return data;
+	}
+	
+	/**
+	 * Takes in a DNS packet and sets its RCode field
+	 * @param data the DNS packet
+	 * @param RCode a 4-bit binary string
+	 * @return the updated DNS packet
+	 */
+	public static byte[] initializeHeaderCounts(byte[] data) {
+		//index to set to 1 = 5
+		//set 0s up to and including index 11
+		String nul = "00000000";
+		data[4] = convertBinaryStringToByte(nul);
+		data[5] = convertBinaryStringToByte("00000001");
+		for(int i=6;i<12;i++) {
+			data[i] = convertBinaryStringToByte(nul);
+		}
 
 		return data;
 	}
