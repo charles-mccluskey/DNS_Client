@@ -1,12 +1,13 @@
+import java.io.IOException;
 import java.net.*;
 import java.util.BitSet;
 import java.util.Random;
 import java.nio.ByteBuffer;
 
 public class DnsClient {
-	private int timeoutTime = 5;
-	private int maxRetries = 3;
-	private int udpPort = 53;
+	private static int timeoutTime = 5;
+	private static int maxRetries = 3;
+	private static int udpPort = 53;
 
 	public static void main(String[] args) {
 		//Input argument indices
@@ -30,20 +31,45 @@ public class DnsClient {
 		 * ADDITIONAL
 		 */
 		try {
-			DatagramSocket clientSocket = new DatagramSocket();
-			
-			byte[] sendData = new byte[1024];
+			boolean mx_ns_flag = true;
 			byte[] ip = new byte[4];
-			for(int i=0;i<args.length;i++) {
-				if(args[i].charAt(0)=='@') {//we have the IP address
-					System.out.println("we have the IP address");
+			for(int i=0;i<args.length;i++) {//parse the args
+				if(args[i].charAt(0)=='@') {//found the IP address
 					ip = parseIP(args[i]);
+				}else if(args[i].contentEquals("-t")) {
+					i++;
+					setTimeout(Integer.parseInt(args[i]));
+				}else if(args[i].contentEquals("-r")) {
+					i++;
+					setMaxRetries(Integer.parseInt(args[i]));					
+				}else if(args[i].contentEquals("-p")) {
+					i++;
+					setPort(Integer.parseInt(args[i]));
+				}else if(args[i].contentEquals("-mx") && mx_ns_flag) {
+					mx_ns_flag=false;
+					//What goes here?
+				}else if(args[i].contentEquals("-ns") && mx_ns_flag) {
+					mx_ns_flag=false;
+					//What goes here?
 				}
 			}
-			for(int i=0;i<ip.length;i++) {
-				System.out.println("ip out: "+ip[i]);
-			}
-		} catch (SocketException e) {
+			
+			byte[] sendData = new byte[1024];
+			byte[] receiveData = new byte[1024];
+			InetAddress addr = InetAddress.getByAddress(ip);
+			DatagramSocket clientSocket = new DatagramSocket();
+			
+			DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, addr, getPort());
+			clientSocket.send(sendPacket);
+			
+			DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+			clientSocket.receive(receivePacket);
+			
+			String modifiedSentence = new String(receivePacket.getData());
+			System.out.println("FROM SERVER:"+modifiedSentence);
+			clientSocket.close();
+			
+		} catch (IOException e) {
 			e.printStackTrace();
 		} 
 		
@@ -79,7 +105,7 @@ public class DnsClient {
 		}
 		
 		byte[] returnArr = new byte[4];
-		for(int i=0;i<4;i++) {
+		for(int i =0;i<4;i++) {
 			System.out.println("Addr at "+i+":"+addr[i]);
 			returnArr[i]=(byte) addr[i];
 		}
@@ -94,19 +120,27 @@ public class DnsClient {
 		return id;
 	}
 	
-	private void setTimeout(int t) {
+	private static void setPort(int t) {
+		udpPort = t;
+	}
+	
+	private static int getPort() {
+		return udpPort;
+	}
+	
+	private static void setTimeout(int t) {
 		timeoutTime = t;
 	}
 	
-	private int getTimeout() {
+	private static int getTimeout() {
 		return timeoutTime;
 	}
 	
-	private void setMaxRetries(int r) {
+	private static void setMaxRetries(int r) {
 		maxRetries = r;
 	}
 	
-	private int getMaxRetries() {
+	private static int getMaxRetries() {
 		return maxRetries;
 	}
 	
