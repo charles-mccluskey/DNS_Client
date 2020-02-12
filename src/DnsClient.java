@@ -79,9 +79,6 @@ public class DnsClient {
 					byteIndex++;
 				}
 			}
-			
-			// ----- START of QUESTION ----- //
-			
 			//Enter null byte to terminate QName
 			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000000");
 			
@@ -96,14 +93,9 @@ public class DnsClient {
 			byteIndex++;
 			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000001");
 			
-			// ---- END of QUESTION ----- //
-			
-			//DEBUG: printing the packet for testing purposes
-			for (byte b : sendData) {
-				System.out.println(BitOperators.convertByteToBinaryString(b));
-			}
 			
 			
+			/*
 			DatagramSocket clientSocket = new DatagramSocket();
 			
 			DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, addr, getPort());
@@ -115,7 +107,7 @@ public class DnsClient {
 			String modifiedSentence = new String(receivePacket.getData());
 			System.out.println("FROM SERVER:"+modifiedSentence);
 			clientSocket.close();
-			
+			*/
 		} catch (IOException e) {
 			e.printStackTrace();
 		} 
@@ -124,12 +116,12 @@ public class DnsClient {
 	
 	private static byte[] initializeHeader(byte[] sendData) {
 		sendData = BitOperators.setHeaderID(sendData);
-		sendData = BitOperators.setQR(sendData, true); //sets QR to '0'
+		sendData = BitOperators.setQR(sendData, true);
 		sendData = BitOperators.setOpCode(sendData, "0000");
-		sendData = BitOperators.setAA(sendData, false); //sets AA to '0'
-		sendData = BitOperators.setTC(sendData, false); //sets TC to '0'
-		sendData = BitOperators.setRD(sendData, true); //sets RD to '1'
-		sendData = BitOperators.setRA(sendData, false); //sets RA to '0'
+		sendData = BitOperators.setAA(sendData, false);
+		sendData = BitOperators.setTC(sendData, false);
+		sendData = BitOperators.setRD(sendData, true);
+		sendData = BitOperators.setRA(sendData, false);
 		sendData = BitOperators.setZ(sendData, "000");//yes, 3 zeroes
 		sendData = BitOperators.setRCode(sendData, "0000");
 		sendData = BitOperators.initializeHeaderCounts(sendData);
