@@ -2,6 +2,7 @@ import java.io.IOException;
 import java.net.*;
 import java.util.BitSet;
 import java.util.Random;
+import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 import java.nio.ByteBuffer;
 
@@ -11,7 +12,19 @@ public class DnsClient {
 	private static int udpPort = 53;
 	private static int queryTypeIndex=0;
 	private static String[] queryType= {"00000001","00000010","00001111"};
+	
+	private static String givenServer = "";
+	private static String givenName = "";
+	private static String givenPort = "";
+	private static String givenMaxRetries = "";
+	private static String givenTimeout = "";
+	private static String givenQueryType = "A";
 
+	private static Integer numberRetries = 0;
+	private static long startTime = 0;
+	private static long stopTime = 0;
+	private static double responseTime = 0;
+	
 	public static void main(String[] args) {
 		//Input argument indices
 		//some may or may not be present, just need to scan the array for tokens -t, -r, -p, -mx/-nx, and the char @
@@ -40,30 +53,36 @@ public class DnsClient {
 			String[] urlStringArr= {};
 			for(int i=0;i<args.length;i++) {//parse the args
 				if(args[i].charAt(0)=='@') {//found the IP address
+					givenServer = args[i];
 					if(i+1 == args.length) {
 						System.out.println("Missing URL");
 						return;
 					}else {
 						ip = parseIP(args[i]);
 						i++;
+						givenName = args[i];
 						urlStringArr = args[i].split("[.]");
 					}
 					
 				}else if(args[i].contentEquals("-t")) {
 					i++;
 					setTimeout(Integer.parseInt(args[i]));
+					givenTimeout = args[i];
 				}else if(args[i].contentEquals("-r")) {
 					i++;
-					setMaxRetries(Integer.parseInt(args[i]));					
+					setMaxRetries(Integer.parseInt(args[i]));	
+					givenMaxRetries = args[i];
 				}else if(args[i].contentEquals("-p")) {
 					i++;
 					setPort(Integer.parseInt(args[i]));
 				}else if(args[i].contentEquals("-mx") && mx_ns_flag) {
 					mx_ns_flag=false;
 					setQueryTypeIndex(2);
+					givenQueryType = "MX";
 				}else if(args[i].contentEquals("-ns") && mx_ns_flag) {
 					mx_ns_flag=false;
 					setQueryTypeIndex(1);
+					givenQueryType = "NS";
 				}
 			}
 			sendData= initializeHeader(sendData);
@@ -107,7 +126,11 @@ public class DnsClient {
 			clientSocket.setSoTimeout(getTimeout()*1000);
 			
 			DatagramPacket sendPacket = new DatagramPacket(data, data.length, addr, getPort());
+			startTime = System.currentTimeMillis();
+			
 			DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+			
+			printQuerySummary(givenName, givenServer, givenQueryType);
 			
 			boolean timeout=true;
 			for(int i=0;i<getMaxRetries();i++) {
@@ -119,9 +142,12 @@ public class DnsClient {
 				}
 				
 				if(receivePacket.getLength()==1024) {//length hasn't changed, we timed out.
+					numberRetries++;
 					System.out.println("Query timeout. Retrying.");
 				}else {
 					timeout=false;
+					stopTime = System.currentTimeMillis();
+					responseTime = ( (double)stopTime - (double)startTime)/1000.0;
 					break;
 				}
 			}
@@ -130,6 +156,10 @@ public class DnsClient {
 				clientSocket.close();
 				return;
 			}
+						
+			//STDOUT: Print valid response
+			printValidResponse(Double.toString(responseTime), Integer.toString(numberRetries));
+			
 			System.out.println("packet received");			
 			byte[] rawReceivedData = receivePacket.getData();
 
@@ -140,6 +170,8 @@ public class DnsClient {
 			clientSocket.close();
 			
 			printHex(receivedData);
+			
+			
 			
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -257,45 +289,45 @@ public class DnsClient {
 		return queryType[i];
 	}
 	
-	private void printQuerySummary(String name, String ipaddress, String type){
+	private static void printQuerySummary(String name, String ipaddress, String type){
 		System.out.println("DnsClient sending request for " + name);
 		System.out.println("Server: " + ipaddress);
 		System.out.println("Request type: " + type);
 	}
 	
-	private void printValidResponse(String time, String numretries){
+	private static void printValidResponse(String time, String numretries){
 		System.out.println("Response received after " + time + " seconds (" + numretries + " retries)");
 	}
 	
-	private void printAnswerResponse(String numanswers) {
+	private static void printAnswerResponse(String numanswers) {
 		System.out.println("***Answer Section (" + numanswers + " records)***" );
 	}
 	
-	private void printAnswerWithARecord(String ipaddress, String secondsCanCache, String auth) {
+	private static void printAnswerWithARecord(String ipaddress, String secondsCanCache, String auth) {
 		System.out.println("IP" + "\t" + ipaddress + "\t" + secondsCanCache + "\t" + auth);
 	}
 
-	private void printAnswerWithCNAMERecord(String alias, String secondsCanCache, String auth) {
+	private static void printAnswerWithCNAMERecord(String alias, String secondsCanCache, String auth) {
 		System.out.println("CNAME" + "\t" + alias + "\t" + secondsCanCache + "\t" + auth);
 	}
 	
-	private void printAnswerWithMXRecord(String alias, String pref, String secondsCanCache, String auth) {
+	private static void printAnswerWithMXRecord(String alias, String pref, String secondsCanCache, String auth) {
 		System.out.println("MX" + "\t" + alias + "\t" + pref + "\t" + secondsCanCache + "\t" + auth);
 	}
 	
-	private void printAnswerWithNSRecord(String alias, String secondsCanCache, String auth) {
+	private static void printAnswerWithNSRecord(String alias, String secondsCanCache, String auth) {
 		System.out.println("NS" + "\t" + alias + "\t" + secondsCanCache + "\t" + auth);
 	}
 	
-	private void printAdditionalResponse(String numadditional) {
+	private static void printAdditionalResponse(String numadditional) {
 		System.out.println("***Additional Section (" + numadditional + " records)***" );
 	}
 	
-	private void printNotFound() {
+	private static void printNotFound() {
 		System.out.println("NOTFOUND");
 	}
 	
-	private void printError(String errorDescription) {
+	private static void printError(String errorDescription) {
 		System.out.println("Error" + "\t" + errorDescription);
 	}
 	
