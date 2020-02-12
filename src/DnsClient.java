@@ -24,6 +24,7 @@ public class DnsClient {
 	private static long startTime = 0;
 	private static long stopTime = 0;
 	private static double responseTime = 0;
+	private static int answerIndex=0;
 	
 	public static void main(String[] args) {
 		//Input argument indices
@@ -116,6 +117,7 @@ public class DnsClient {
 			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000000");
 			byteIndex++;
 			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000001");
+			setAnswerIndex(byteIndex+1);
 			
 			byte[] data = new byte[byteIndex+1];
 			for(int i=0;i<data.length;i++) {
@@ -170,8 +172,11 @@ public class DnsClient {
 			clientSocket.close();
 			
 			printHex(receivedData);
-			
-			
+			System.out.println("--------------------");
+			printAnswerResponse(receivedData);
+			if(getQueryTypeIndex()==0) {
+				printAnswerWithARecord(receivedData);
+			}
 			
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -253,6 +258,18 @@ public class DnsClient {
 		return id;
 	}
 	
+	private static int getUnsignedInt(byte thing) {
+		return (int) thing & 0xFF;
+	}
+	
+	private static void setAnswerIndex(int t) {
+		answerIndex = t;
+	}
+	
+	private static int getAnswerIndex() {
+		return answerIndex;
+	}
+	
 	private static void setPort(int t) {
 		udpPort = t;
 	}
@@ -299,12 +316,49 @@ public class DnsClient {
 		System.out.println("Response received after " + time + " seconds (" + numretries + " retries)");
 	}
 	
-	private static void printAnswerResponse(String numanswers) {
-		System.out.println("***Answer Section (" + numanswers + " records)***" );
+	private static void printAnswerResponse(byte[] data) {
+		int answers = 0;
+		answers += (int) (getUnsignedInt(data[6]))*16;
+		answers += (int) (getUnsignedInt(data[7]));
+		if(answers>0) {
+			System.out.println("***Answer Section (" + answers + " records)***" );			
+		}
 	}
 	
-	private static void printAnswerWithARecord(String ipaddress, String secondsCanCache, String auth) {
-		System.out.println("IP" + "\t" + ipaddress + "\t" + secondsCanCache + "\t" + auth);
+	private static void printAnswerWithARecord(byte[] data) {
+		//String ipaddress, String secondsCanCache, String auth
+		
+		String auth="";
+		String temp = BitOperators.convertByteToBinaryString(data[2]);
+		if(temp.charAt(5)=='1') {//if authority
+			auth = "auth";
+		}else {
+			auth = "nonauth";
+		}//authority established
+			
+			
+		int ttlIndex = getAnswerIndex()+6;//next 4 bytes are ttl
+		int secondsCanCache = 0;//-i*2
+		for(int i=0;i<4;i++) {//convert 32 bits to unsigned int
+			secondsCanCache += (int) (getUnsignedInt(data[ttlIndex+i])*Math.pow(16, 6-i*2));
+		}
+		
+		int ipLengthIndex = getAnswerIndex()+10;
+		int dataLength = 0;
+		dataLength += (int) (getUnsignedInt(data[ipLengthIndex]))*16;
+		dataLength += (int) (getUnsignedInt(data[ipLengthIndex+1]));
+		String ip = "";
+		for(int i=0;i<dataLength;i++) {
+			String tmp="";
+			if(i==dataLength-1) {
+				tmp = ""+getUnsignedInt(data[ipLengthIndex+2+i]);
+			}else {
+				tmp = ""+getUnsignedInt(data[ipLengthIndex+2+i])+".";				
+			}
+			ip=ip.concat(tmp);
+		}
+		System.out.println("IP" + "\t" + ip.toString() + "\t" + secondsCanCache + "\t" + auth);	
+		
 	}
 
 	private static void printAnswerWithCNAMERecord(String alias, String secondsCanCache, String auth) {
