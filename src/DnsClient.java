@@ -2,6 +2,7 @@ import java.io.IOException;
 import java.net.*;
 import java.util.BitSet;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.nio.ByteBuffer;
 
 public class DnsClient {
@@ -83,6 +84,10 @@ public class DnsClient {
 			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000000");
 			
 			//Either next byte or next even index byte. Current assumption: next byte
+			/*if(byteIndex%2==0) {//increment the byte index to prep Qtype at next even index
+				byteIndex++;
+				sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000000");
+			}*/
 			byteIndex++;//format QType
 			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000000");
 			byteIndex++;
@@ -93,21 +98,71 @@ public class DnsClient {
 			byteIndex++;
 			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000001");
 			
-			
-			
+			byte[] data = new byte[byteIndex+1];
+			for(int i=0;i<data.length;i++) {
+				data[i] = sendData[i];
+			}
 			/*
+			String hexDump = BitOperators.bytesToHex(data);
+			
+			for(int i=0;i<hexDump.length();i+=4) {
+				if(i+4 > hexDump.length()) {
+					System.out.println(hexDump.substring(i, hexDump.length()));
+				}else {
+					System.out.println(hexDump.substring(i, i+4));
+				}
+
+			}*/
+			
+			
 			DatagramSocket clientSocket = new DatagramSocket();
 			
-			DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, addr, getPort());
-			clientSocket.send(sendPacket);
-			
+			DatagramPacket sendPacket = new DatagramPacket(data, data.length, addr, getPort());
 			DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-			clientSocket.receive(receivePacket);
 			
-			String modifiedSentence = new String(receivePacket.getData());
-			System.out.println("FROM SERVER:"+modifiedSentence);
+			//for(int i=0;i<getMaxRetries();i++) {
+			clientSocket.send(sendPacket);	
+			System.out.println("Sent Packet");
+			clientSocket.setSoTimeout(getTimeout()*1000);
+			clientSocket.receive(receivePacket);
+			//}
+			
+			byte[] rawReceivedData = receivePacket.getData();
+			String receivedHexDump = BitOperators.bytesToHex(rawReceivedData);
+			
+			int endPacket = 0;
+			int truncated = 0;
+			for(int i=0;i<receivedHexDump.length();i+=4) {
+				if(receivedHexDump.substring(i, i+4).contentEquals("0000")) {
+					endPacket++;
+				}else {
+					endPacket=0;
+				}
+				if(endPacket==5) {
+					truncated-=8;
+					break;
+				}else {
+					truncated+=2;
+				}
+			}
+
+			byte[] receivedData = new byte[truncated];
+			for(int i=0;i<truncated;i++) {
+				receivedData[i] = rawReceivedData[i];
+			}
 			clientSocket.close();
-			*/
+			
+			String hexDump = BitOperators.bytesToHex(receivedData);
+			
+			for(int i=0;i<hexDump.length();i+=4) {
+				if(i+4 > hexDump.length()) {
+					System.out.println(hexDump.substring(i, hexDump.length()));
+				}else {
+					System.out.println(hexDump.substring(i, i+4));
+				}
+
+			}
+			
 		} catch (IOException e) {
 			e.printStackTrace();
 		} 
@@ -129,7 +184,7 @@ public class DnsClient {
 		return sendData;
 	}
 	
-		private static byte[] parseIP(String rawIP) {
+	private static byte[] parseIP(String rawIP) {
 		StringBuilder builder = new StringBuilder(rawIP);
 		builder.deleteCharAt(0);//delete @ char
 		
