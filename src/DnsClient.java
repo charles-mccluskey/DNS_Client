@@ -102,71 +102,64 @@ public class DnsClient {
 			for(int i=0;i<data.length;i++) {
 				data[i] = sendData[i];
 			}
-			/*
-			String hexDump = BitOperators.bytesToHex(data);
-			
-			for(int i=0;i<hexDump.length();i+=4) {
-				if(i+4 > hexDump.length()) {
-					System.out.println(hexDump.substring(i, hexDump.length()));
-				}else {
-					System.out.println(hexDump.substring(i, i+4));
-				}
-
-			}*/
-			
 			
 			DatagramSocket clientSocket = new DatagramSocket();
+			clientSocket.setSoTimeout(getTimeout()*1000);
 			
 			DatagramPacket sendPacket = new DatagramPacket(data, data.length, addr, getPort());
 			DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
 			
-			//for(int i=0;i<getMaxRetries();i++) {
-			clientSocket.send(sendPacket);	
-			System.out.println("Sent Packet");
-			clientSocket.setSoTimeout(getTimeout()*1000);
-			clientSocket.receive(receivePacket);
-			//}
-			
-			byte[] rawReceivedData = receivePacket.getData();
-			String receivedHexDump = BitOperators.bytesToHex(rawReceivedData);
-			
-			int endPacket = 0;
-			int truncated = 0;
-			for(int i=0;i<receivedHexDump.length();i+=4) {
-				if(receivedHexDump.substring(i, i+4).contentEquals("0000")) {
-					endPacket++;
-				}else {
-					endPacket=0;
+			boolean timeout=true;
+			for(int i=0;i<getMaxRetries();i++) {
+				clientSocket.send(sendPacket);
+				try {
+					clientSocket.receive(receivePacket);
+				}catch (IOException e){
+					
 				}
-				if(endPacket==5) {
-					truncated-=8;
-					break;
+				
+				if(receivePacket.getLength()==1024) {//length hasn't changed, we timed out.
+					System.out.println("Query timeout. Retrying.");
 				}else {
-					truncated+=2;
+					timeout=false;
+					break;
 				}
 			}
+			if(timeout) {
+				System.out.println("ERROR; failed to contact server after "+getMaxRetries()+" attempts.");
+				clientSocket.close();
+				return;
+			}
+			System.out.println("packet received");			
+			byte[] rawReceivedData = receivePacket.getData();
 
-			byte[] receivedData = new byte[truncated];
-			for(int i=0;i<truncated;i++) {
+			byte[] receivedData = new byte[receivePacket.getLength()];
+			for(int i=0;i<receivePacket.getLength();i++) {
 				receivedData[i] = rawReceivedData[i];
 			}
 			clientSocket.close();
 			
-			String hexDump = BitOperators.bytesToHex(receivedData);
-			
-			for(int i=0;i<hexDump.length();i+=4) {
-				if(i+4 > hexDump.length()) {
-					System.out.println(hexDump.substring(i, hexDump.length()));
-				}else {
-					System.out.println(hexDump.substring(i, i+4));
-				}
-
-			}
+			printHex(receivedData);
 			
 		} catch (IOException e) {
 			e.printStackTrace();
 		} 
 		
+	}
+	
+	private static void printHex(byte[] data) {
+		//A method I built to help another method I yoinked from stackoverflow.
+		//Will print data from a byte array in hex, printing it in hextets.
+		String hexDump = BitOperators.bytesToHex(data);
+		
+		for(int i=0;i<hexDump.length();i+=4) {
+			if(i+4 > hexDump.length()) {
+				System.out.println(hexDump.substring(i, hexDump.length()));
+			}else {
+				System.out.println(hexDump.substring(i, i+4));
+			}
+
+		}
 	}
 	
 	private static byte[] initializeHeader(byte[] sendData) {
@@ -215,7 +208,6 @@ public class DnsClient {
 		
 		byte[] returnArr = new byte[4];
 		for(int i =0;i<4;i++) {
-			System.out.println("Addr at "+i+":"+addr[i]);
 			returnArr[i]=(byte) addr[i];
 		}
 		
