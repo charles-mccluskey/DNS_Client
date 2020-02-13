@@ -246,10 +246,15 @@ public class BitOperators {
 	
 	private static final Integer getAnswerTypeIndex(byte[] data, Integer answerIndex) {
 		int i = answerIndex;
-		while (convertByteToBinaryString(data[i]) != "00000000") {
+		while (!convertByteToBinaryString(data[i]).contentEquals("00000000") || !convertByteToBinaryString(data[answerIndex]).substring(0, 2).contentEquals("11")) {
 			i++;
 		}
-		return i;
+		
+		if (convertByteToBinaryString(data[answerIndex]).substring(0, 2).contentEquals("11")) {
+			return i + 2;
+		}
+		
+		return i + 1;
 	} 
 	
 	public static final String getAnswerName(byte[] data, Integer answerIndex) {
