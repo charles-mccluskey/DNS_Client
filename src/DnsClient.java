@@ -135,7 +135,7 @@ public class DnsClient {
 			byteIndex++;
 			sendData[byteIndex]=BitOperators.convertBinaryStringToByte("00000001");
 			setAnswerIndex(byteIndex+1);
-			
+
 			byte[] data = new byte[byteIndex+1];
 			for(int i=0;i<data.length;i++) {
 				data[i] = sendData[i];
@@ -266,7 +266,8 @@ public class DnsClient {
 	}
 	
 	private static int getUnsignedInt(byte thing) {
-		return (int) thing & 0xFF;
+		int toReturn = thing & 0xFF;
+		return toReturn;
 	}
 	
 	private static void setAnswerIndex(int t) {
@@ -344,10 +345,12 @@ public class DnsClient {
 		}//authority established
 			
 			
-		int ttlIndex = getAnswerIndex()+6;//next 4 bytes are ttl
-		int secondsCanCache = 0;//-i*2
+		int ttlIndex = getAnswerIndex()+6;
+		int secondsCanCache = 0;
 		for(int i=0;i<4;i++) {//convert 32 bits to unsigned int
-			secondsCanCache += (int) (getUnsignedInt(data[ttlIndex+i])*Math.pow(16, 6-i*2));
+			int test = getUnsignedInt(data[ttlIndex+i]);
+			int othertemp = (test << 8*(4-i));
+			secondsCanCache = secondsCanCache + othertemp;
 		}
 		
 		int ipLengthIndex = getAnswerIndex()+10;
