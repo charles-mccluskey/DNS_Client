@@ -243,4 +243,43 @@ public class BitOperators {
 	    }
 	    return new String(hexChars);
 	}
+	
+	private static final Integer getAnswerTypeIndex(byte[] data, Integer answerIndex) {
+		int i = answerIndex;
+		while (!convertByteToBinaryString(data[i]).contentEquals("00000000") || !convertByteToBinaryString(data[answerIndex]).substring(0, 2).contentEquals("11")) {
+			i++;
+		}
+		
+		if (convertByteToBinaryString(data[answerIndex]).substring(0, 2).contentEquals("11")) {
+			return i + 2;
+		}
+		
+		return i + 1;
+	} 
+	
+	public static final String getAnswerName(byte[] data, Integer answerIndex) {
+		String name = "";
+		//While zero flag or pointer has not been reached
+		while( !convertByteToBinaryString(data[answerIndex]).contentEquals("00000000")) {
+			Integer index = Integer.valueOf(convertByteToBinaryString(data[answerIndex]), 2);
+			//System.out.println(convertByteToBinaryString(data[answerIndex]).substring(0, 2));
+			if (!convertByteToBinaryString(data[answerIndex]).substring(0, 2).contentEquals("11")) {
+				Integer limitIndex = answerIndex + index;
+				answerIndex++;
+				
+				while(answerIndex <= limitIndex) {
+					name += Character.toString((char) (data[answerIndex]));
+					answerIndex++;
+				}
+				name += ".";
+			}
+			else {
+				Integer offset = Integer.valueOf(convertByteToBinaryString(data[answerIndex]).substring(2, 8)+convertByteToBinaryString(data[answerIndex + 1]), 2);
+				answerIndex = offset;
+			}
+		}
+		
+		return name.substring(0, name.length()-1);
+	}
+	
 }

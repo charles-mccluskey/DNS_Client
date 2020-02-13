@@ -194,9 +194,12 @@ public class DnsClient {
 				printAnswerWithARecord(receivedData);
 			}
 			
+			System.out.println(BitOperators.getAnswerName(rawReceivedData, getAnswerIndex()));
+			
 		} catch (IOException e) {
 			e.printStackTrace();
 		} 
+		
 		
 	}
 	
