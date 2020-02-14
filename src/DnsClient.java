@@ -11,7 +11,7 @@ public class DnsClient {
 	private static int maxRetries = 3;
 	private static int udpPort = 53;
 	private static int queryTypeIndex=0;
-	private static String[] queryType= {"00000001","00000010","00001111"};
+	private static String[] queryType= {"00000001","00000010","00001111","000001001"};
 	
 	private static String givenServer = "";
 	private static String givenName = "";
@@ -189,12 +189,41 @@ public class DnsClient {
 			
 			printHex(receivedData);
 			System.out.println("--------------------");
-			printAnswerResponse(receivedData);
-			if(getQueryTypeIndex()==0) {
-				printAnswerWithARecord(receivedData);
+			//printAnswerResponse(receivedData);
+			//read the response segment to figure out what kind of response it is.
+			int responseIndex = getAnswerIndex();
+			/*Answer field:
+			 * [n][n+1] domain name pointer
+			 * [n+2][n+3] response type
+			 * [n+4][n+5] response class ERROR IF NOT 0x0001
+			 * [n+6][n+7] 
+			 * [n+8][n+9] TTL
+			 * [n+10][n+11] rdata length
+			 * [n+12+] rdata
+			 */
+			int hardLimit=0;
+			while(responseIndex<receivedData.length && hardLimit<200) {
+				/* AType = 1
+				 * NSType = 2
+				 * MXType = 15
+				 * CType = 5
+				 */
+				int responseType = (getUnsignedInt(receivedData[responseIndex+2])<<8) + getUnsignedInt(receivedData[responseIndex+3]);
+				if(responseType == 1) {//AType response; looking for IP
+					printAnswerWithARecord(receivedData, responseIndex);
+				}else if(responseType == 2) {//NSType response
+					System.out.println("NSType response not yet implemented");
+				}else if(responseType == 15) {//MXType response
+					System.out.println("MXType response not yet implemented");					
+				}else if(responseType == 5){//CType response
+					System.out.println("CType response not yet implemented");
+				}
+				hardLimit++;
+				responseIndex=getAnswerIndex();
 			}
 			
-			System.out.println(BitOperators.getAnswerName(rawReceivedData, getAnswerIndex()));
+			//System.out.println(BitOperators.getAnswerName(rawReceivedData, getAnswerIndex()));
+			//System.out.println(BitOperators.readRData(receivedData,getAnswerIndex(),getQueryTypeIndex()==2));
 			
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -336,7 +365,7 @@ public class DnsClient {
 		}
 	}
 	
-	private static void printAnswerWithARecord(byte[] data) {
+	private static void printAnswerWithARecord(byte[] data, int index) {
 		//String ipaddress, String secondsCanCache, String auth
 		
 		String auth="";
@@ -347,31 +376,44 @@ public class DnsClient {
 			auth = "nonauth";
 		}//authority established
 			
-			
-		int ttlIndex = getAnswerIndex()+6;
+		/*Answer field:
+		 * [n][n+1] domain name pointer
+		 * [n+2][n+3] response type
+		 * [n+4][n+5] response class ERROR IF NOT 0x0001
+		 * [n+6][n+7] 
+		 * [n+8][n+9] TTL
+		 * [n+10][n+11] rdata length
+		 * [n+12-->] rdata
+		 * end: [n+
+		 */
+		
+		int ttlIndex = index+6;
 		int secondsCanCache = 0;
 		for(int i=0;i<4;i++) {//convert 32 bits to unsigned int
-			int test = getUnsignedInt(data[ttlIndex+i]);
-			int othertemp = (test << 8*(4-i));
-			secondsCanCache = secondsCanCache + othertemp;
-		}
+			int val = getUnsignedInt(data[ttlIndex+i]);
+			int shiftedVal = (val << (8*(4-i)));
+			secondsCanCache = secondsCanCache + shiftedVal;
+		}//We have the TTL
 		
-		int ipLengthIndex = getAnswerIndex()+10;
+		int ipLengthIndex = index+10;
 		int dataLength = 0;
-		dataLength += (int) (getUnsignedInt(data[ipLengthIndex]))*16;
-		dataLength += (int) (getUnsignedInt(data[ipLengthIndex+1]));
+		dataLength += getUnsignedInt(data[index+10])<<8;
+		dataLength += getUnsignedInt(data[index+11]);
+		//we have the length of the RData field
+		
 		String ip = "";
-		for(int i=0;i<dataLength;i++) {
+		//i starts at rdata, ends at end of answer section.
+		for(int i=(index+12);i<(index+12+dataLength);i++) {
 			String tmp="";
-			if(i==dataLength-1) {
-				tmp = ""+getUnsignedInt(data[ipLengthIndex+2+i]);
+			if(i==(index+12+dataLength)-1) {
+				tmp += getUnsignedInt(data[i]);
 			}else {
-				tmp = ""+getUnsignedInt(data[ipLengthIndex+2+i])+".";				
+				tmp += getUnsignedInt(data[i])+".";				
 			}
 			ip=ip.concat(tmp);
 		}
+		setAnswerIndex((index+12+dataLength));//sets answer index to next response.
 		System.out.println("IP" + "\t" + ip.toString() + "\t" + secondsCanCache + "\t" + auth);	
-		
 	}
 
 	private static void printAnswerWithCNAMERecord(String alias, String secondsCanCache, String auth) {
