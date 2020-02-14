@@ -300,9 +300,9 @@ public class BitOperators {
 			if(isPointer(sample)) {//if it's a pointer, then we need to go to point and read until null
 				i++;
 				int pointer=getUnsignedInt(data[i]);
-				rData+=readUntilNull(data,pointer);
+				rData+=readUntilNull(data,pointer/*,dataLength*/);
 			}else if(getUnsignedInt(sample)>0){//if not pointer, it's a number and we need to read until null
-				rData+=readUntilNull(data,i);
+				rData+=readUntilNull(data,i/*,dataLength*/);
 				i=skipToIndex-1;
 			}else {//if neither, it's a null character. Insert a tab.
 				rData+='\t';
@@ -313,31 +313,23 @@ public class BitOperators {
 	}
 	
 	private static int skipToIndex=0;
-	private static String readUntilNull(byte[] data, int index) {
+	public static String readUntilNull(byte[] data, int index) {
+		//inputs: entire packet labeled data, index starting at rData field,length of rdata field
 		String toReturn="";
-		while(getUnsignedInt(data[index])!=0 && index<data.length) {
+
+		while(getUnsignedInt(data[index])!=0) {
 			if(isPointer(data[index])) {
 				toReturn += readUntilNull(data,getUnsignedInt(data[index+1]));
-				index++;
+				return toReturn;
 			}else {
-				//differentiate between a char and a number of chars
-				int size = getUnsignedInt(data[index]);
-				int limit = index+size;
-				//System.out.println("Limit = "+limit);
+				int length = getUnsignedInt(data[index]);
 				index++;
-				for(int i=0;i<size && index<data.length;i++,index++) {
-					toReturn += (char) data[index];
-					//System.out.println(toReturn);
-					//System.out.println("Index ="+index);
+				for(int i=0;i<length;i++,index++) {
+					toReturn+=(char) data[index];
 				}
-				toReturn +='.';
-				if(index>=data.length) {
-					break;
-				}
+				toReturn+=".";
 			}
 		}
-
-		skipToIndex=index;
 		return toReturn.substring(0, toReturn.length()-1);
 	}
 	

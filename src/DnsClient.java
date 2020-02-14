@@ -189,7 +189,7 @@ public class DnsClient {
 			
 			printHex(receivedData);
 			System.out.println("--------------------");
-			//printAnswerResponse(receivedData);
+			printAnswerResponse(receivedData);
 			//read the response segment to figure out what kind of response it is.
 			int responseIndex = getAnswerIndex();
 			/*Answer field:
@@ -209,14 +209,18 @@ public class DnsClient {
 				 * CType = 5
 				 */
 				int responseType = (getUnsignedInt(receivedData[responseIndex+2])<<8) + getUnsignedInt(receivedData[responseIndex+3]);
-				if(responseType == 1) {//AType response; looking for IP
+				int perhapsError = (getUnsignedInt(receivedData[responseIndex+4])<<8) + getUnsignedInt(receivedData[responseIndex+5]);
+				
+				if(perhapsError!=1){
+					System.out.println("We gots a boo boo.");
+				}else if(responseType == 1) {//AType response; looking for IP
 					printAnswerWithARecord(receivedData, responseIndex);
 				}else if(responseType == 2) {//NSType response
 					System.out.println("NSType response not yet implemented");
 				}else if(responseType == 15) {//MXType response
 					System.out.println("MXType response not yet implemented");					
 				}else if(responseType == 5){//CType response
-					System.out.println("CType response not yet implemented");
+					printAnswerWithCNAMERecord(receivedData, responseIndex);
 				}
 				hardLimit++;
 				responseIndex=getAnswerIndex();
@@ -416,7 +420,41 @@ public class DnsClient {
 		System.out.println("IP" + "\t" + ip.toString() + "\t" + secondsCanCache + "\t" + auth);	
 	}
 
-	private static void printAnswerWithCNAMERecord(String alias, String secondsCanCache, String auth) {
+	private static void printAnswerWithCNAMERecord(byte[] data, int index) {
+		/*Answer field:
+		 * [n][n+1] domain name pointer
+		 * [n+2][n+3] response type
+		 * [n+4][n+5] response class ERROR IF NOT 0x0001
+		 * [n+6][n+7] 
+		 * [n+8][n+9] TTL
+		 * [n+10][n+11] rdata length
+		 * [n+12+] rdata
+		 */
+		String auth="";
+		String temp = BitOperators.convertByteToBinaryString(data[2]);
+		if(temp.charAt(5)=='1') {//if authority
+			auth = "auth";
+		}else {
+			auth = "nonauth";
+		}//authority established
+		
+		int ttlIndex = index+6;
+		int secondsCanCache = 0;
+		for(int i=0;i<4;i++) {//convert 32 bits to unsigned int
+			int val = getUnsignedInt(data[ttlIndex+i]);
+			int shiftedVal = (val << (8*(4-i)));
+			secondsCanCache = secondsCanCache + shiftedVal;
+		}//We have the TTL
+
+		int ipLengthIndex = index+10;
+		int dataLength = 0;
+		dataLength += getUnsignedInt(data[index+10])<<8;
+		dataLength += getUnsignedInt(data[index+11]);
+		//we have the length of the RData field
+		
+		String alias = BitOperators.readUntilNull(data, index+12/*, dataLength*/);
+		
+		setAnswerIndex((index+12+dataLength));
 		System.out.println("CNAME" + "\t" + alias + "\t" + secondsCanCache + "\t" + auth);
 	}
 	
