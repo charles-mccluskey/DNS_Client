@@ -187,7 +187,7 @@ public class DnsClient {
 			}
 			clientSocket.close();
 			
-			printHex(receivedData);
+			//printHex(receivedData);
 			System.out.println("--------------------");
 			printAnswerResponse(receivedData);
 			//read the response segment to figure out what kind of response it is.
@@ -202,9 +202,13 @@ public class DnsClient {
 			 * [n+12+] rdata
 			 */
 			int hardLimit=0;
+			int aCount=0;
+			int cCount=0;
+			int nsCount=0;
+			int mxCount=0;
 			while(responseIndex<receivedData.length && hardLimit<200) {
 				/* AType = 1
-				 * NSType = 2
+				 * NSType = 2 ; 6
 				 * MXType = 15
 				 * CType = 5
 				 */
@@ -212,27 +216,57 @@ public class DnsClient {
 				int perhapsError = (getUnsignedInt(receivedData[responseIndex+4])<<8) + getUnsignedInt(receivedData[responseIndex+5]);
 				
 				if(perhapsError!=1){
-					System.out.println("We gots a boo boo.");
+					printError("Invalid response class found.");
+					if(responseIndex+12>=receivedData.length) {
+						break;
+					}else {
+						int tmp = getUnsignedInt(receivedData[responseIndex+12]);
+						setAnswerIndex((responseIndex+12+tmp));
+					}
 				}else if(responseType == 1) {//AType response; looking for IP
 					printAnswerWithARecord(receivedData, responseIndex);
-				}else if(responseType == 2) {//NSType response
-					System.out.println("NSType response not yet implemented");
+					aCount++;
+				}else if(responseType == 6 || responseType == 2) {//NSType response
+					printAnswerWithNSRecord(receivedData, responseIndex);
+					nsCount++;
 				}else if(responseType == 15) {//MXType response
-					System.out.println("MXType response not yet implemented");					
+					printAnswerWithMXRecord(receivedData, responseIndex);
+					mxCount++;
 				}else if(responseType == 5){//CType response
 					printAnswerWithCNAMERecord(receivedData, responseIndex);
+					cCount++;
+				}else {
+					if(responseIndex+12>receivedData.length) {
+						break;
+					}else {
+						int tmp = getUnsignedInt(receivedData[responseIndex+12]);
+						setAnswerIndex((responseIndex+12+tmp));
+					}
 				}
 				hardLimit++;
 				responseIndex=getAnswerIndex();
 			}
 			
-			//System.out.println(BitOperators.getAnswerName(rawReceivedData, getAnswerIndex()));
-			//System.out.println(BitOperators.readRData(receivedData,getAnswerIndex(),getQueryTypeIndex()==2));
+			if(aCount + nsCount + mxCount + cCount ==0) {
+				printNotFound();
+			}else {
+				if(aCount>0) {
+					printAdditionalResponse("A-Type", aCount);
+				}
+				if(nsCount>0) {
+					printAdditionalResponse("NS Type", nsCount);
+				}
+				if(mxCount>0) {
+					printAdditionalResponse("MX Type", mxCount);
+				}
+				if(cCount>0) {
+					printAdditionalResponse("CNAME", cCount);
+				}
+			}
 			
 		} catch (IOException e) {
 			e.printStackTrace();
 		} 
-		
 		
 	}
 	
@@ -452,30 +486,95 @@ public class DnsClient {
 		dataLength += getUnsignedInt(data[index+11]);
 		//we have the length of the RData field
 		
-		String alias = BitOperators.readUntilNull(data, index+12/*, dataLength*/);
+		String alias = BitOperators.readUntilNull(data, index+12);
 		
 		setAnswerIndex((index+12+dataLength));
 		System.out.println("CNAME" + "\t" + alias + "\t" + secondsCanCache + "\t" + auth);
 	}
 	
-	private static void printAnswerWithMXRecord(String alias, String pref, String secondsCanCache, String auth) {
+	private static void printAnswerWithMXRecord(byte[] data, int index) {
+		
+		/*Answer field:
+		 * [n][n+1] domain name pointer
+		 * [n+2][n+3] response type
+		 * [n+4][n+5] response class ERROR IF NOT 0x0001
+		 * [n+6][n+7] 
+		 * [n+8][n+9] TTL
+		 * [n+10][n+11] rdata length
+		 * [n+12+] rdata
+		 */
+		String auth="";
+		String temp = BitOperators.convertByteToBinaryString(data[2]);
+		if(temp.charAt(5)=='1') {//if authority
+			auth = "auth";
+		}else {
+			auth = "nonauth";
+		}//authority established
+		
+		int ttlIndex = index+6;
+		int secondsCanCache = 0;
+		for(int i=0;i<4;i++) {//convert 32 bits to unsigned int
+			int val = getUnsignedInt(data[ttlIndex+i]);
+			int shiftedVal = (val << (8*(4-i)));
+			secondsCanCache = secondsCanCache + shiftedVal;
+		}//We have the TTL
+
+		int ipLengthIndex = index+10;
+		int dataLength = 0;
+		dataLength += getUnsignedInt(data[index+10])<<8;
+		dataLength += getUnsignedInt(data[index+11]);
+		//we have the length of the RData field
+		
+		int pref = (getUnsignedInt(data[index+12])<<8) + getUnsignedInt(data[index+12]);
+		
+		String alias = BitOperators.readUntilNull(data, index+14/*, dataLength*/);
+		
+		setAnswerIndex((index+12+dataLength));
 		System.out.println("MX" + "\t" + alias + "\t" + pref + "\t" + secondsCanCache + "\t" + auth);
 	}
 	
-	private static void printAnswerWithNSRecord(String alias, String secondsCanCache, String auth) {
+	private static void printAnswerWithNSRecord(byte[] data, int index) {
+		/*Answer field:
+		 * [n][n+1] domain name pointer
+		 * [n+2][n+3] response type
+		 * [n+4][n+5] response class ERROR IF NOT 0x0001
+		 * [n+6][n+7] 
+		 * [n+8][n+9] TTL
+		 * [n+10][n+11] rdata length
+		 * [n+12+] rdata
+		 */
+		String auth="";
+		String temp = BitOperators.convertByteToBinaryString(data[2]);
+		if(temp.charAt(5)=='1') {//if authority
+			auth = "auth";
+		}else {
+			auth = "nonauth";
+		}//authority established
+		
+		int ttlIndex = index+6;
+		int secondsCanCache = 0;
+		for(int i=0;i<4;i++) {//convert 32 bits to unsigned int
+			int val = getUnsignedInt(data[ttlIndex+i]);
+			int shiftedVal = (val << (8*(4-i)));
+			secondsCanCache = secondsCanCache + shiftedVal;
+		}//We have the TTL
+
+		int ipLengthIndex = index+10;
+		int dataLength = 0;
+		dataLength += getUnsignedInt(data[index+10])<<8;
+		dataLength += getUnsignedInt(data[index+11]);
+		//we have the length of the RData field
+		
+		String alias = BitOperators.readUntilNull(data, index+12/*, dataLength*/);
+		
+		setAnswerIndex((index+12+dataLength));
+
 		System.out.println("NS" + "\t" + alias + "\t" + secondsCanCache + "\t" + auth);
 	}
 	
-	private static void printAdditionalResponse(byte[] data) {
-		//examining what's in ARCOUNT: indices 10 and 11
-		int numadditional=0;
-		numadditional += getUnsignedInt(data[10])*16;
-		numadditional += getUnsignedInt(data[11]);
-		if(numadditional>0) {
-			System.out.println("***Additional Section (" + numadditional + " records)***" );			
-		}else {
-			printNotFound();
-		}
+	private static void printAdditionalResponse(String type, int numadditional) {
+		System.out.println("***Additional Section ("+type+": " + numadditional + " records)***" );			
+
 	}
 	
 	private static void printNotFound() {

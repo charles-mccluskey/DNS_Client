@@ -282,41 +282,9 @@ public class BitOperators {
 		return name.substring(0, name.length()-1);
 	}
 	
-	public static String readRData(byte[] data, int ansIndex, boolean mx) {
-		//ansIndex starts immediately after query data
-		//rLength is located exactly 10 bytes further
-		int dataLength = getUnsignedInt(data[ansIndex+10])<<8;
-		dataLength += getUnsignedInt(data[ansIndex+11]);
-		//dataLength now contains the length of rData.
-		String rData="";
-		int start = ansIndex+12;
-		int boost=0;
-		if(mx) {
-			boost+=2;
-		}
-		//System.out.println("Bound: "+data.length);
-		for(int i=start+boost;i<data.length-1;i++) {//iterate through the bytes of the rdata field
-			byte sample = data[i];
-			if(isPointer(sample)) {//if it's a pointer, then we need to go to point and read until null
-				i++;
-				int pointer=getUnsignedInt(data[i]);
-				rData+=readUntilNull(data,pointer/*,dataLength*/);
-			}else if(getUnsignedInt(sample)>0){//if not pointer, it's a number and we need to read until null
-				rData+=readUntilNull(data,i/*,dataLength*/);
-				i=skipToIndex-1;
-			}else {//if neither, it's a null character. Insert a tab.
-				rData+='\t';
-			}
-		}
-		
-		return rData;
-	}
-	
-	private static int skipToIndex=0;
 	public static String readUntilNull(byte[] data, int index) {
 		//inputs: entire packet labeled data, index starting at rData field,length of rdata field
 		String toReturn="";
-
 		while(getUnsignedInt(data[index])!=0) {
 			if(isPointer(data[index])) {
 				toReturn += readUntilNull(data,getUnsignedInt(data[index+1]));
